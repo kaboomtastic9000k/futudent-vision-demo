@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Futudent VISION — 3D Dental Viewer Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
+  .app { display: grid; grid-template-columns: 220px 1fr 240px; grid-template-rows: 52px 1fr 56px; height: 100vh; }
+  .topbar { grid-column: 1/-1; background: #161b22; border-bottom: 1px solid #30363d; display: flex; align-items: center; padding: 0 16px; gap: 16px; }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; color: #58a6ff; }
+  .logo svg { width: 22px; height: 22px; }
+  .patient-badge, .case-badge { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 4px 12px; font-size: 12px; color: #8b949e; display: flex; align-items: center; gap: 8px; }
+  .patient-badge span, .case-badge span { color: #e6edf3; font-weight: 500; }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+  .btn-primary { background: #58a6ff; color: #0d1117; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .btn-secondary { background: transparent; color: #8b949e; border: 1px solid #30363d; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  .left-panel { background: #161b22; border-right: 1px solid #30363d; overflow-y: auto; padding: 12px; }
+  .panel-title { font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .img-thumb { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; transition: all 0.15s; }
+  .img-thumb:hover { background: #21262d; }
+  .img-thumb.active { background: #21262d; border-color: #58a6ff44; }
+  .thumb-img { width: 52px; height: 38px; border-radius: 5px; background: #2d333b; overflow: hidden; flex-shrink: 0; }
+  .thumb-img canvas { width: 100%; height: 100%; }
+  .thumb-info { flex: 1; min-width: 0; }
+  .thumb-name { font-size: 12px; font-weight: 500; color: #e6edf3; margin-bottom: 3px; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; display: inline-block; }
+  .tag-good { background: #1f4a2e; color: #3fb950; }
+  .tag-low { background: #3d2b00; color: #d29922; }
+  .tag-used { background: #1c2d3e; color: #58a6ff; margin-right: 3px; }
+  .viewer { background: #0d1117; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  canvas#dental { display: block; }
+  .viewer-controls { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; }
+  .view-btn { background: #21262d; border: 1px solid #30363d; border-radius: 8px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; font-weight: 500; color: #8b949e; transition: all 0.15s; flex-direction: column; gap: 1px; user-select: none; }
+  .view-btn:hover, .view-btn.active { background: #30363d; color: #e6edf3; border-color: #58a6ff; }
+  .hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #484f58; white-space: nowrap; }
+  .right-panel { background: #161b22; border-left: 1px solid #30363d; overflow-y: auto; padding: 12px; }
+  .tooth-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .tooth-title { font-size: 16px; font-weight: 600; color: #e6edf3; display: flex; align-items: center; gap: 8px; }
+  .reviewed-badge { font-size: 10px; background: #1f4a2e; color: #3fb950; border-radius: 6px; padding: 2px 8px; }
+  .info-row { margin-bottom: 10px; }
+  .info-label { font-size: 11px; color: #8b949e; margin-bottom: 3px; }
+  .info-value { font-size: 13px; color: #e6edf3; }
+  .findings-badge { display: inline-block; background: #3d2b00; color: #d29922; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-right: 4px; margin-bottom: 4px; }
+  .section-title { font-size: 11px; font-weight: 500; color: #8b949e; text-transform: uppercase; letter-spacing: 0.8px; margin: 14px 0 8px; }
+  .treatment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .treatment-card { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 8px; cursor: pointer; transition: all 0.15s; }
+  .treatment-card:hover { border-color: #58a6ff; background: #1c2d3e; }
+  .treatment-card.selected { border-color: #58a6ff; background: #1c2d3e; }
+  .t-icon { font-size: 18px; margin-bottom: 4px; }
+  .t-name { font-size: 12px; font-weight: 500; color: #e6edf3; }
+  .t-sub { font-size: 10px; color: #8b949e; margin-top: 1px; }
+  .notes-area { width: 100%; background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 8px; font-size: 12px; color: #e6edf3; resize: none; margin-top: 4px; font-family: inherit; }
+  .notes-area::placeholder { color: #484f58; }
+  .bottombar { grid-column: 1/-1; background: #161b22; border-top: 1px solid #30363d; display: flex; align-items: center; gap: 4px; padding: 0 16px; }
+  .tab { padding: 0 16px; height: 100%; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b949e; cursor: pointer; border-top: 2px solid transparent; margin-top: 2px; transition: all 0.15s; }
+  .tab:hover { color: #e6edf3; }
+  .tab.active { color: #58a6ff; border-top-color: #58a6ff; }
+  .disclaimer { margin-left: auto; font-size: 10px; color: #484f58; }
+  .no-tooth { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: #484f58; font-size: 13px; gap: 8px; text-align: center; }
+  .demo-badge { position: absolute; top: 10px; left: 12px; background: #58a6ff22; border: 1px solid #58a6ff44; color: #58a6ff; font-size: 10px; padding: 3px 8px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      Futudent VISION
+    </div>
+    <div class="patient-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <span>Anna Smith</span>&nbsp;ID: AS-1987-09-12 | Age: 36 | Female
+    </div>
+    <div class="case-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span>Case 2026-06-03</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-primary">Save</button>
+      <button class="btn-secondary">Export</button>
+    </div>
+  </div>
+
+  <!-- Left panel -->
+  <div class="left-panel">
+    <div class="panel-title">
+      Source Images
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+    </div>
+    <div class="img-thumb active" onclick="setView('front', this)">
+      <div class="thumb-img"><canvas id="t1" width="52" height="38"></canvas></div>
+      <div class="thumb-info"><div class="thumb-name">Front</div><span class="tag tag-used">Used</span><span class="tag tag-good">Good</span></div>
+    </div>
+    <div class="img-thumb" onclick="setView('upper', this)">
+      <div class="thumb-img"><canvas id="t2" width="52" height="38"></canvas></div>
+      <div class="thumb-info"><div class="thumb-name">Upper Arch</div><span class="tag tag-used">Used</span><span class="tag tag-good">Good</span></div>
+    </div>
+    <div class="img-thumb" onclick="setView('lower', this)">
+      <div class="thumb-img"><canvas id="t3" width="52" height="38"></canvas></div>
+      <div class="thumb-info"><div class="thumb-name">Lower Arch</div><span class="tag tag-used">Used</span><span class="tag tag-good">Good</span></div>
+    </div>
+    <div class="img-thumb" onclick="setView('left', this)">
+      <div class="thumb-img"><canvas id="t4" width="52" height="38"></canvas></div>
+      <div class="thumb-info"><div class="thumb-name">Left Side</div><span class="tag tag-used">Used</span><span class="tag tag-low">Low glare</span></div>
+    </div>
+    <div class="img-thumb" onclick="setView('right', this)">
+      <div class="thumb-img"><canvas id="t5" width="52" height="38"></canvas></div>
+      <div class="thumb-info"><div class="thumb-name">Right Side</div><span class="tag tag-used">Used</span><span class="tag tag-low">Low glare</span></div>
+    </div>
+  </div>
+
+  <!-- 3D Viewer -->
+  <div class="viewer">
+    <canvas id="dental"></canvas>
+    <div class="demo-badge">PoC Demo — Jorge Luis Pena</div>
+    <div class="viewer-controls">
+      <div class="view-btn active" onclick="setArch('both')" id="vboth">Both</div>
+      <div class="view-btn" onclick="setArch('upper')" id="vupper">Upper</div>
+      <div class="view-btn" onclick="setArch('lower')" id="vlower">Lower</div>
+      <div class="view-btn" style="margin-top:8px; font-size:10px;" onclick="toggleTexture()" id="vtex">Tex<br>ture</div>
+      <div class="view-btn" style="font-size:10px;" onclick="resetView()">Reset<br>View</div>
+    </div>
+    <div class="hint">Click &amp; drag to rotate &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Click tooth to select</div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+    <div id="noTooth" class="no-tooth">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C9 2 6 4.5 6 8c0 2 .5 3.5 1 5l1 7h8l1-7c.5-1.5 1-3 1-5 0-3.5-3-6-6-6z"/></svg>
+      Click a tooth to see details
+    </div>
+    <div id="toothDetail" style="display:none">
+      <div class="tooth-header">
+        <div class="tooth-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C9 2 6 4.5 6 8c0 2 .5 3.5 1 5l1 7h8l1-7c.5-1.5 1-3 1-5 0-3.5-3-6-6-6z"/></svg>
+          <span id="toothLabel">Tooth 21</span>
+        </div>
+        <span class="reviewed-badge">✓ Reviewed</span>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Source images</div>
+        <div class="info-value" id="toothSrc"></div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Findings</div>
+        <div id="toothFindings"></div>
+      </div>
+      <div class="section-title">Treatment options</div>
+      <div class="treatment-grid">
+        <div class="treatment-card" onclick="selectTreatment(this)"><div class="t-icon">🔍</div><div class="t-name">Monitor</div><div class="t-sub">No intervention</div></div>
+        <div class="treatment-card" onclick="selectTreatment(this)"><div class="t-icon">🔧</div><div class="t-name">Composite</div><div class="t-sub">Conservative restoration</div></div>
+        <div class="treatment-card" onclick="selectTreatment(this)"><div class="t-icon">✨</div><div class="t-name">Veneer</div><div class="t-sub">Esthetic improvement</div></div>
+        <div class="treatment-card" onclick="selectTreatment(this)"><div class="t-icon">👑</div><div class="t-name">Crown</div><div class="t-sub">Full coverage</div></div>
+      </div>
+      <div class="section-title">Notes</div>
+      <textarea class="notes-area" rows="3" placeholder="Add notes here..."></textarea>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottombar">
+    <div class="tab active">3D Model</div>
+    <div class="tab">Source Images</div>
+    <div class="tab">Compare</div>
+    <div class="tab">Issues</div>
+    <div class="tab">Treatment</div>
+    <div class="tab">Report</div>
+    <div class="disclaimer">ⓘ For communication and documentation support. Not a scanner-grade digital impression.</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const toothData = {
+  11: { label:'Tooth 11', src:'Frontal, Upper Arch', findings:['Incisal wear'] },
+  12: { label:'Tooth 12', src:'Frontal, Upper Arch', findings:['Mild rotation'] },
+  13: { label:'Tooth 13', src:'Frontal, Left Side', findings:['Healthy'] },
+  14: { label:'Tooth 14', src:'Upper Arch, Left Side', findings:['Healthy'] },
+  15: { label:'Tooth 15', src:'Upper Arch', findings:['Healthy'] },
+  16: { label:'Tooth 16', src:'Upper Arch', findings:['Occlusal wear'] },
+  17: { label:'Tooth 17', src:'Upper Arch', findings:['Healthy'] },
+  21: { label:'Tooth 21', src:'Frontal, Upper Arch', findings:['Incisal wear','Mild discoloration'] },
+  22: { label:'Tooth 22', src:'Frontal, Upper Arch', findings:['Healthy'] },
+  23: { label:'Tooth 23', src:'Frontal, Right Side', findings:['Healthy'] },
+  24: { label:'Tooth 24', src:'Upper Arch, Right Side', findings:['Healthy'] },
+  25: { label:'Tooth 25', src:'Upper Arch', findings:['Healthy'] },
+  26: { label:'Tooth 26', src:'Upper Arch', findings:['Deep fissure'] },
+  27: { label:'Tooth 27', src:'Upper Arch', findings:['Healthy'] },
+  31: { label:'Tooth 31', src:'Frontal, Lower Arch', findings:['Healthy'] },
+  32: { label:'Tooth 32', src:'Frontal, Lower Arch', findings:['Crowding'] },
+  33: { label:'Tooth 33', src:'Frontal, Left Side', findings:['Healthy'] },
+  34: { label:'Tooth 34', src:'Lower Arch', findings:['Healthy'] },
+  35: { label:'Tooth 35', src:'Lower Arch', findings:['Healthy'] },
+  36: { label:'Tooth 36', src:'Lower Arch', findings:['Recession'] },
+  37: { label:'Tooth 37', src:'Lower Arch', findings:['Healthy'] },
+  41: { label:'Tooth 41', src:'Frontal, Lower Arch', findings:['Healthy'] },
+  42: { label:'Tooth 42', src:'Frontal, Lower Arch', findings:['Healthy'] },
+  43: { label:'Tooth 43', src:'Frontal, Right Side', findings:['Healthy'] },
+  44: { label:'Tooth 44', src:'Lower Arch', findings:['Healthy'] },
+  45: { label:'Tooth 45', src:'Lower Arch', findings:['Healthy'] },
+  46: { label:'Tooth 46', src:'Lower Arch', findings:['Caries suspect'] },
+  47: { label:'Tooth 47', src:'Lower Arch', findings:['Healthy'] },
+};
+
+const viewer = document.getElementById('dental');
+const container = viewer.parentElement;
+const scene = new THREE.Scene();
+const renderer = new THREE.WebGLRenderer({ canvas: viewer, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x0d1117, 1);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 0, 7);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const dir1 = new THREE.DirectionalLight(0xffffff, 0.8);
+dir1.position.set(3, 5, 3); scene.add(dir1);
+const dir2 = new THREE.DirectionalLight(0x8ab4f8, 0.3);
+dir2.position.set(-3, -2, 2); scene.add(dir2);
+
+let rotX = 0.1, rotY = 0, targetRotX = 0.1, targetRotY = 0;
+let zoom = 7, isDragging = false, lastX = 0, lastY = 0;
+let selectedMesh = null, hoveredMesh = null;
+let archMode = 'both', showTexture = true;
+let mouseDownX = 0, mouseDownY = 0;
+
+const toothMeshes = [];
+const toothGroup = new THREE.Group();
+scene.add(toothGroup);
+
+const gumMat = new THREE.MeshPhongMaterial({ color: 0xc87a7a, shininess: 30 });
+const toothMat = () => new THREE.MeshPhongMaterial({ color: 0xf5f0e8, shininess: 80, specular: 0x888877 });
+const issueMat = () => new THREE.MeshPhongMaterial({ color: 0xd29922, shininess: 60 });
+const selMat = new THREE.MeshPhongMaterial({ color: 0x58a6ff, shininess: 100, emissive: 0x1a3a6e });
+const hoverMat = new THREE.MeshPhongMaterial({ color: 0xdde8f8, shininess: 80 });
+
+function buildArch(isUpper) {
+  const group = new THREE.Group();
+  const sign = isUpper ? 1 : -1;
+  const yBase = isUpper ? 0.6 : -0.6;
+
+  const pts = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = (i / 20) * Math.PI;
+    pts.push(new THREE.Vector2(Math.cos(t) * 2.8, Math.sin(t) * 1.7 - 0.3));
+  }
+
+  const gumGeo = new THREE.ShapeGeometry((() => {
+    const s = new THREE.Shape();
+    s.moveTo(-3.2, -0.6 * sign);
+    s.quadraticCurveTo(0, 2.0 * sign, 3.2, -0.6 * sign);
+    s.lineTo(3.4, -1.0 * sign);
+    s.quadraticCurveTo(0, 2.4 * sign, -3.4, -1.0 * sign);
+    s.closePath();
+    return s;
+  })());
+  const gum = new THREE.Mesh(gumGeo, gumMat);
+  gum.rotation.x = -Math.PI / 2;
+  gum.position.y = yBase - 0.05 * sign;
+  group.add(gum);
+
+  const ids = isUpper
+    ? [17,16,15,14,13,12,11,21,22,23,24,25,26,27]
+    : [47,46,45,44,43,42,41,31,32,33,34,35,36,37];
+
+  for (let i = 0; i < 14; i++) {
+    const t = (i / 13) * Math.PI;
+    const x = Math.cos(t) * 2.6;
+    const z = Math.sin(t) * 1.6 - 0.3;
+    const id = ids[i];
+    const isMolar = i < 2 || i > 11;
+    const isPremolar = i === 2 || i === 3 || i === 10 || i === 11;
+    const w = isMolar ? 0.38 : isPremolar ? 0.32 : 0.28;
+    const h = isMolar ? 0.55 : isPremolar ? 0.60 : (i >= 5 && i <= 8) ? 0.76 : 0.65;
+    const d = isMolar ? 0.35 : 0.28;
+
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const pos = geo.attributes.position.array;
+    for (let j = 0; j < pos.length; j += 3) {
+      const py = pos[j+1];
+      const f = (py/(h/2)+1)/2;
+      pos[j] *= (1 - f*0.15);
+      pos[j+2] *= (1 - f*0.1);
+      if (py > 0) pos[j+1] += f * 0.08;
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.computeVertexNormals();
+
+    const hasIssue = toothData[id] && toothData[id].findings[0] !== 'Healthy';
+    const mat = hasIssue ? issueMat() : toothMat();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.y = -(t - Math.PI/2);
+    mesh.position.set(x, yBase + (h/2)*sign, z);
+    mesh.userData = { id, hasIssue, defaultMat: mat };
+    toothMeshes.push(mesh);
+    group.add(mesh);
+  }
+  return group;
+}
+
+const upperArch = buildArch(true);
+const lowerArch = buildArch(false);
+toothGroup.add(upperArch);
+toothGroup.add(lowerArch);
+toothGroup.rotation.x = 0.3;
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function getHit(e) {
+  const rect = viewer.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  return raycaster.intersectObjects(toothMeshes);
+}
+
+viewer.addEventListener('mousedown', e => {
+  isDragging = true;
+  lastX = mouseDownX = e.clientX;
+  lastY = mouseDownY = e.clientY;
+  viewer.style.cursor = 'grabbing';
+});
+
+viewer.addEventListener('mousemove', e => {
+  if (isDragging) {
+    targetRotY += (e.clientX - lastX) * 0.008;
+    targetRotX += (e.clientY - lastY) * 0.006;
+    targetRotX = Math.max(-0.9, Math.min(0.9, targetRotX));
+    lastX = e.clientX; lastY = e.clientY;
+    return;
+  }
+  const hits = getHit(e);
+  if (hoveredMesh && hoveredMesh !== selectedMesh) {
+    hoveredMesh.material = hoveredMesh.userData.defaultMat;
+    hoveredMesh = null;
+  }
+  if (hits.length) {
+    const m = hits[0].object;
+    if (m !== selectedMesh) { m.material = hoverMat; hoveredMesh = m; }
+    viewer.style.cursor = 'pointer';
+  } else {
+    viewer.style.cursor = 'grab';
+  }
+});
+
+viewer.addEventListener('mouseup', e => {
+  const moved = Math.abs(e.clientX - mouseDownX) + Math.abs(e.clientY - mouseDownY);
+  isDragging = false;
+  viewer.style.cursor = 'grab';
+  if (moved < 4) {
+    const hits = getHit(e);
+    if (hits.length) selectTooth(hits[0].object);
+    else deselect();
+  }
+});
+
+viewer.addEventListener('wheel', e => {
+  zoom = Math.max(3, Math.min(12, zoom + e.deltaY * 0.005));
+  e.preventDefault();
+}, { passive: false });
+
+viewer.addEventListener('mouseleave', () => { isDragging = false; });
+
+function selectTooth(mesh) {
+  if (selectedMesh) selectedMesh.material = selectedMesh.userData.defaultMat;
+  selectedMesh = mesh;
+  mesh.material = selMat;
+  const d = toothData[mesh.userData.id];
+  if (!d) return;
+  document.getElementById('noTooth').style.display = 'none';
+  document.getElementById('toothDetail').style.display = 'block';
+  document.getElementById('toothLabel').textContent = d.label;
+  document.getElementById('toothSrc').textContent = d.src;
+  document.getElementById('toothFindings').innerHTML = d.findings.map(f =>
+    `<span class="findings-badge">${f}</span>`).join('');
+  document.querySelectorAll('.treatment-card').forEach(c => c.classList.remove('selected'));
+}
+
+function deselect() {
+  if (selectedMesh) { selectedMesh.material = selectedMesh.userData.defaultMat; selectedMesh = null; }
+  document.getElementById('noTooth').style.display = 'flex';
+  document.getElementById('toothDetail').style.display = 'none';
+}
+
+function selectTreatment(el) {
+  document.querySelectorAll('.treatment-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function setArch(mode) {
+  archMode = mode;
+  upperArch.visible = mode !== 'lower';
+  lowerArch.visible = mode !== 'upper';
+  ['vboth','vupper','vlower'].forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById('v' + mode).classList.add('active');
+  if (mode === 'upper') { targetRotX = -0.35; zoom = 5; }
+  else if (mode === 'lower') { targetRotX = 0.55; zoom = 5; }
+  else { targetRotX = 0.1; zoom = 7; }
+}
+
+function setView(v, el) {
+  document.querySelectorAll('.img-thumb').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  if (v === 'front')  { targetRotX = 0.1;  targetRotY = 0;    zoom = 7; setArch('both'); }
+  if (v === 'upper')  { targetRotX = -1.1; targetRotY = 0;    zoom = 5; setArch('upper'); }
+  if (v === 'lower')  { targetRotX = 1.2;  targetRotY = 0;    zoom = 5; setArch('lower'); }
+  if (v === 'left')   { targetRotX = 0.1;  targetRotY = -0.9; zoom = 6; setArch('both'); }
+  if (v === 'right')  { targetRotX = 0.1;  targetRotY = 0.9;  zoom = 6; setArch('both'); }
+}
+
+function toggleTexture() {
+  showTexture = !showTexture;
+  document.getElementById('vtex').classList.toggle('active', showTexture);
+  toothMeshes.forEach(m => {
+    if (m !== selectedMesh) {
+      m.userData.defaultMat.color.setHex(
+        showTexture ? (m.userData.hasIssue ? 0xd29922 : 0xf5f0e8) : 0x9ecaed
+      );
+      m.material = m.userData.defaultMat;
+    }
+  });
+}
+
+function resetView() {
+  targetRotX = 0.1; targetRotY = 0; zoom = 7;
+  setArch('both');
+  document.querySelectorAll('.img-thumb').forEach((t,i) => t.classList.toggle('active', i===0));
+}
+
+function drawThumb(id, color) {
+  const c = document.getElementById(id);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#1a1f2e'; ctx.fillRect(0,0,52,38);
+  ctx.fillStyle = '#b06060';
+  ctx.beginPath(); ctx.ellipse(26,30,20,7,0,0,Math.PI*2); ctx.fill();
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(7+i*5.2, 15, 4.2, 11, 1);
+    else ctx.rect(7+i*5.2, 15, 4.2, 11);
+    ctx.fill();
+  }
+}
+drawThumb('t1','#e8e0d0');
+drawThumb('t2','#f0ece0');
+drawThumb('t3','#f0ece0');
+drawThumb('t4','#ccc8b8');
+drawThumb('t5','#ccc8b8');
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  viewer.width = w; viewer.height = h;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  rotX += (targetRotX - rotX) * 0.08;
+  rotY += (targetRotY - rotY) * 0.08;
+  toothGroup.rotation.x = rotX;
+  toothGroup.rotation.y = rotY;
+  camera.position.z += (zoom - camera.position.z) * 0.08;
+  renderer.render(scene, camera);
+}
+
+resize();
+window.addEventListener('resize', resize);
+animate();
+</script>
+</body>
+</html>
